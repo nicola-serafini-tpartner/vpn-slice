@@ -98,6 +98,11 @@ class IptablesProvider(FirewallProvider):
         self._iptables('-D', 'INPUT', '-i', device, '-j', 'DROP')
         self._iptables('-D', 'INPUT', '-i', device, '-m', 'state', '--state', 'RELATED,ESTABLISHED', '-j', 'ACCEPT')
 
+    def configure_post_routing_nat(self, device, dest):
+        self._iptables('-t', 'nat', '-A', 'POSTROUTING', '-o', device, '-d', dest, '-j', 'MASQUERADE')
+
+    def deconfigure_post_routing_nat(self, device, dest):
+        self._iptables('-t', 'nat', '-D', 'POSTROUTING', '-o', device, '-d', dest, '-j', 'MASQUERADE')
 
 class CheckTunDevProvider(TunnelPrepProvider):
     def create_tunnel(self):

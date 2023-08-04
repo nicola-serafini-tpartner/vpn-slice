@@ -148,6 +148,15 @@ def do_disconnect(env, args):
     else:
         providers.route.flush_cache()
 
+    # delete post-routing-nat
+    for dest, desc in chain(tagged(args.subnets, "route")):
+        try:
+            providers.firewall.deconfigure_post_routing_nat(env.tundev, str(dest))
+            if args.verbose > 1:
+                print("Removed post-routing-nat for %s." % dest)
+        except CalledProcessError:
+            print("WARNING: could not remove post-routing-nat for %s (%s)" % (desc, dest), file=stderr)
+
     # remove firewall rule blocking incoming traffic
     if 'firewall' in providers and not args.incoming:
         try:
@@ -236,6 +245,21 @@ def do_connect(env, args):
         providers.route.flush_cache()
         if args.verbose:
             print("Added routes for %d nameservers, %d subnets, %d aliases." % (len(ns), len(args.subnets), len(args.aliases)), file=stderr)
+
+    # split-tunnel based post-routing-nat
+    if args.post_routing_nat:
+        if args.verbose > 1:
+            print("Adding post-routing-nat as requested.")
+        for dest, tag in chain(tagged(args.subnets, "subnet"), tagged(args.aliases, "alias")):
+            try:
+                providers.firewall.configure_post_routing_nat(env.tundev, str(dest))
+            except CalledProcessError:
+                print("WARNING: could not delete post-routing-nat for %s (%s)" % (dest, tag), file=stderr)
+            if args.verbose > 1:
+                print("Added post-routing-nat for %s." % dest)
+    else:
+        if args.verbose:
+            print("You don't need post-routing-nat.")
 
     # restore routes to excluded subnets
     for dest, exc_route in exc_subnets:
@@ -468,6 +492,7 @@ def parse_args_and_env(args=None, environ=os.environ):
     g.add_argument('--banner', action='store_true', help='Print banner message (default is to suppress it)')
     g = p.add_argument_group('Routing and hostname options')
     g.add_argument('-i', '--incoming', action='store_true', help='Allow incoming traffic from VPN (default is to block)')
+    g.add_argument('-t', '--post-routing-nat', action='store_true', help='If net.ipv4.ip_forward = 1, act as router (default is no).')
     g.add_argument('-n', '--name', default=None, help='Name of this VPN (default is $TUNDEV)')
     g.add_argument('-d', '--domain', action='append', help='Search domain inside the VPN (default is $CISCO_DEF_DOMAIN)')
     g.add_argument('-I', '--route-internal', action='store_true', help="Add route for VPN's default subnet (passed in as $INTERNAL_IP*_NET*")
